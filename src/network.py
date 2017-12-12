@@ -27,7 +27,7 @@ class Network:
         self.output_layer = self.model.add_parameters((vocab.num_action(), properties.hidden_dim_2))
         self.output_bias = self.model.add_parameters(vocab.num_action(), init=dynet.ConstInitializer(0))
 
-    def forward(self, features):
+    def forward(self, features, dropout=False):
         # extract ids for word, pos and label
         word_ids = [self.vocab.word2id(w) for w in features[:20]]
         pos_ids = [self.vocab.pos2id(p) for p in features[20:40]]
@@ -43,8 +43,11 @@ class Network:
 
         # calculating the hidden layers
         hidden_1 = self.transfer(self.hidden_layer_1.expr() * embedding_layer + self.hidden_layer_bias_1.expr())
+        if dropout:
+            hidden_1 = dynet.dropout(hidden_1, self.properties.dropout)
         hidden_2 = self.transfer(self.hidden_layer_2.expr() * hidden_1 + self.hidden_layer_bias_2.expr())
-
+        if dropout:
+            hidden_2 = dynet.dropout(hidden_2, self.properties.dropout)
         # calculating the output layer
         output = self.output_layer.expr() * hidden_2 + self.output_bias.expr()
 
@@ -75,7 +78,7 @@ class Network:
             for line in train_data:
                 fields = line.strip('\n').split(" ")
                 features, action, gold_action = fields[:-1], fields[-1], self.vocab.action2id(fields[-1])
-                result = self.forward(features)
+                result = self.forward(features, True)
 
                 # getting loss with respect to negative log softmax function and the gold label; and appending to the minibatch losses.
                 loss = dynet.pickneglogsoftmax(result, gold_action)
